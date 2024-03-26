@@ -34,14 +34,21 @@ class Umwelt:
         self.rewards[self.loc[0], self.loc[1]] = self.existence_cost
 
     def print_world(self):
+
         for row_index in range(0, self.rows):
-            print(row_index)
+            row  = str(row_index) + ':'
             for col_index in range(0, self.cols):
                 if self.loc[0] == row_index and self.loc[1] == col_index:
-                    print('LOID')
-                else:
-                    print(self.rewards[row_index,col_index])
-            print("\n")
+                    row += " " + "L"
+                elif self.rewards[row_index,col_index] == 'nothing':
+                    row += " " + "*"
+                elif self.rewards[row_index,col_index] == 'food':
+                    row += " " + "F"
+                elif self.rewards[row_index,col_index] == 'partner':
+                    row += " " + "P"
+                elif self.rewards[row_index,col_index] == 'border':
+                    row += " " + "x"
+            print(row)
                 
 
 
