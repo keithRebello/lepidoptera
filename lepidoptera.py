@@ -21,8 +21,8 @@ class Loid():
         self.lambda_energy = lambda_energy
         self.timestep = 0
         self.actions = None
-        self.desires = {'evolve':0, 'reproduce':0, 'eat':0}
-        self.desire_dict = {'food':'eat', 'partner':'reproduce'}
+        self.desires = {'evolve':0, 'reproduce':0, 'eat':0, 'nothing': 0, 'border':0}
+        self.desire_dict = {'food':'eat', 'partner':'reproduce', 'nothing': 'nothing', 'border':'border'}
         self.rewards = {'evolve':0, 'reproduce':0, 'eat':0}
         self.rewards_coeff = {'evolve':[1,1], 'reproduce':[1,1], 'eat':[1,1]}
         self.umwelt = Umwelt(6,8,'nothing', 'border', 'food', 'partner')
@@ -41,15 +41,16 @@ class Loid():
         dir_prob_numerators ={}
         for i in range(9):
             indicator = 0
-            value = self.umwelt.check_loc(i)
+            row, col = self.map_action_to_rowcol(i)
+            value = self.umwelt.check_loc(row, col)
             if value == 'partner' and self.state['stage'] == 'larva':
                 value = 'nothing'
             if value == 'food' or value == 'partner':
                 indicator = 1
 
-            dir_prob_numerators[i] = (1 + indicator * self.desire[self.desire_dict[value]])
-        dir_prob_denominator = np.sum(dir_prob_numerators.values)
-        dir_prob = {k : v * (1.0/dir_prob_denominator) for k,v in dir_prob_numerators.iteritems()}
+            dir_prob_numerators[i] = (1 + indicator * self.desires[self.desire_dict[value]])
+        dir_prob_denominator = sum(dir_prob_numerators.values())
+        dir_prob = {k : v * (1.0/dir_prob_denominator) for k,v in dir_prob_numerators.items()}
 
         if self.state['stage'] == 'larva':
             dir_prob['evolve'] = np.sigmoid(self.desire["evolve"])
@@ -67,8 +68,18 @@ class Loid():
     def move(self, action):
         if self.isAlive == False:
             print("DEAD. RIP LOID")
-            return        
+            return     
 
+        row , col = self.map_action_to_rowcol(action)   
+
+        if action == 'evolve':
+            self.evolve()
+        
+        self.umwelt.set_loc(row,col)
+        self.timestep += 1
+        return row, col
+    
+    def map_action_to_rowcol(self, action):
         if action == 0:
            row = -1
            col = -1
@@ -99,10 +110,6 @@ class Loid():
         if action == 'evolve':
             row = 0
             col = 0
-            self.evolve()
-        
-        self.umwelt.set_loc(row,col)
-        self.timestep += 1
         return row, col
 
     def desire(self):
@@ -117,6 +124,9 @@ class Loid():
         if desire == 'partner':
             self.state['energy'] -= 2
             self.umwelt.unset_desire()
+
+        if self.state['energy'] <= 0:
+            self.state['isAlive'] = False
         self.update_desires()
 
     def update_desires(self):
@@ -125,7 +135,7 @@ class Loid():
         self.desires["eat"] = np.exp(-self.lambda_energy*self.timestep)
     
     def reward(self):
-        return -1* np.sum(self.desires)
+        return -1* sum(self.desires.values())
 
     def isAlive(self):
         return self.state['isAlive']
@@ -137,6 +147,9 @@ class Loid():
 
     def get_dims(self):
         return self.umwelt.get_dims()
+    
+    def loc(self):
+        return self.umwelt.get_loc()
 
 
 

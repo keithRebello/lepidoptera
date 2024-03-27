@@ -27,6 +27,10 @@ class Umwelt:
         return self.rows, self.cols
     
     def set_loc(self, row, col):
+        if self.check_loc(row, col) == 'border':
+            row = 0
+            col = 0
+            
         self.loc[0] = self.loc[0] + row
         self.loc[1] = self.loc[1] + col
     
@@ -35,6 +39,9 @@ class Umwelt:
     
     def unset_energy(self):
         self.energy[self.loc[0], self.loc[1]] = self.existence_cost
+
+    def check_loc(self, row, col):
+        return self.energy[self.loc[0]+row, self.loc[1]+col] 
 
     def print_world(self):
 
@@ -52,6 +59,7 @@ class Umwelt:
                 elif self.energy[row_index,col_index] == 'border':
                     row += " " + "x"
             print(row)
+
                 
 
 
