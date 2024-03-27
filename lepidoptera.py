@@ -1,11 +1,14 @@
 import random
 import numpy as np
+import math
 
-stage = ['larva', 'adult', 'dead']
-desires = {'survive':1, 'reproduce':0}
+
+
+# stage = ['larva', 'adult', 'dead']
+# desires = {'survive':1, 'reproduce':0}
 isAlive = True
 
-state = {'stage':stage, 'desires':desires, 'energy': 1, 'isAlive': isAlive}
+state = {'stage':'larva', 'energy': 1, 'isAlive': isAlive}
 # goal is no goal?
 
 actions = ['move','eat','metamorphize','mate','die']
@@ -23,16 +26,26 @@ class Loid():
         self.actions = None
         self.desires = {'evolve':0, 'reproduce':0, 'eat':0, 'nothing': 0, 'border':0}
         self.desire_dict = {'food':'eat', 'partner':'reproduce', 'nothing': 'nothing', 'border':'border'}
-        self.rewards = {'evolve':0, 'reproduce':0, 'eat':0}
-        self.rewards_coeff = {'evolve':[1,1], 'reproduce':[1,1], 'eat':[1,1]}
+        self.interactions = {'food_as_larva':0, 'food_as_adult':0, 'partner':0}
+        # self.rewards = {'evolve':0, 'reproduce':0, 'eat':0}
+        # self.rewards_coeff = {'evolve':[1,1], 'reproduce':[1,1], 'eat':[1,1]}
         self.umwelt = Umwelt(6,8,'nothing', 'border', 'food', 'partner')
-        self.state = state
-        self.last_desire = 0
+        self.state = {'stage':'larva', 'energy': 1, 'isAlive': isAlive}
+        # self.last_desire = 0
     
     def evolve(self):
-        if self.state['stage'] == 'larva':
-            self.state['stage'] == 'adult'
+        if self.state['stage'] == 'larva' and self.state['energy'] >= 2:
+            self.state['stage'] = 'adult'        
+            self.state['energy'] -= 2
+            self.desires['evolve'] = 0
+
         self.timestep += 1
+
+    def canEvo(self):
+        if self.state['stage'] == 'larva' and self.state['energy'] >= 2:
+            return True
+        return False
+    
 
     def mate(self):
         self.timestep += 1
@@ -52,8 +65,9 @@ class Loid():
         dir_prob_denominator = sum(dir_prob_numerators.values())
         dir_prob = {k : v * (1.0/dir_prob_denominator) for k,v in dir_prob_numerators.items()}
 
-        if self.state['stage'] == 'larva':
-            dir_prob['evolve'] = np.sigmoid(self.desire["evolve"])
+        if self.canEvo():
+            print("Evo desire: ",self.desires["evolve"])
+            dir_prob[9] = self.sigmoid(-100 if self.desires["evolve"] < -100 else self.desires["evolve"])
 
         max_value = max(dir_prob.values())
         best_actions = [k for k,v in dir_prob.items() if v == max_value]
@@ -63,19 +77,20 @@ class Loid():
         elif len(best_actions) == 1:
             return best_actions[0]
         else:
-            return random.choice([x for x in dir_prob.keys if x != 'evolve'])
+            return random.choice([x for x in dir_prob.keys if x != 9])
     
     def move(self, action):
-        if self.isAlive == False:
-            print("DEAD. RIP LOID")
-            return     
+        if self.state['isAlive'] == False:
+            return self.loc()
 
         row , col = self.map_action_to_rowcol(action)   
 
-        if action == 'evolve':
+        if action == 9:
             self.evolve()
         
         self.umwelt.set_loc(row,col)
+        self.update_energy()
+        self.update_desires()
         self.timestep += 1
         return row, col
     
@@ -107,35 +122,50 @@ class Loid():
         if action == 8:
            row = 1
            col = 1
-        if action == 'evolve':
+        if action == 9:
             row = 0
             col = 0
         return row, col
 
-    def desire(self):
-        desire = self.umwelt.get_desire()
-        if desire == 'nothing':
-            self.state['energy'] -= 0.20
-        if desire == 'border':
+    def update_energy(self):
+        box_type = self.umwelt.get_box_type()
+        if box_type == 'nothing':
+            self.state['energy'] -= 0.02
+        if box_type == 'border':
             self.state['energy'] = 0
-        if desire == 'food':
-            self.state['energy'] += np.random.normal() * np.exp(-self.lambda_energy*self.timestep)
-            self.umwelt.unset_desire()
-        if desire == 'partner':
+        if box_type == 'food':
+            self.state['energy'] += random.uniform(1,3) * np.exp(-self.lambda_energy*self.timestep)
+            self.umwelt.unset_box_type()
+            if self.state['stage'] == 'larva':
+                self.interactions['food_as_larva'] += 1
+            else:
+                self.interactions['food_as_adult'] += 1
+        if box_type == 'partner' and self.state['stage']=='adult':
             self.state['energy'] -= 2
-            self.umwelt.unset_desire()
+            self.umwelt.unset_box_type()
+            self.interactions['partner'] += 1
+        else:
+            self.state['energy'] -= 0.02 
 
         if self.state['energy'] <= 0:
             self.state['isAlive'] = False
+
         self.update_desires()
 
     def update_desires(self):
-        self.desires["reproduce"] *= self.timestep * self.state["energy"]
-        self.desires["evolve"] = self.timestep * self.state["energy"]
-        self.desires["eat"] = np.exp(-self.lambda_energy*self.timestep)
+        if self.state['stage'] == 'larva':
+            self.desires["evolve"] = self.timestep * self.state["energy"]
+            self.desires["eat"] = np.exp(-self.lambda_energy*self.timestep/self.state["energy"])
+        else:
+            self.desires["reproduce"] = self.timestep * self.state["energy"]
+            self.desires["eat"] = np.exp(-self.lambda_energy*self.timestep/self.state["energy"])
+        
     
     def reward(self):
-        return -1* sum(self.desires.values())
+        if self.state['stage'] == 'larva':
+            return self.desires['evolve'] + self.desires['eat']
+        else:
+            return self.desires['reproduce'] + self.desires['eat']
 
     def isAlive(self):
         return self.state['isAlive']
@@ -150,6 +180,14 @@ class Loid():
     
     def loc(self):
         return self.umwelt.get_loc()
+    
+    def print_stats(self):
+        print("States: ", self.state)
+        print("Rewards: ", self.desires)
+        print("Interactions: ",self.interactions)
+
+    def sigmoid(self, x):
+        return 1 / (1 + math.exp(-x))
 
 
 
