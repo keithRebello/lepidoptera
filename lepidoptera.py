@@ -10,7 +10,7 @@ state = {'stage':stage, 'desires':desires, 'energy': 1, 'isAlive': isAlive}
 
 actions = ['move','eat','metamorphize','mate','die']
 
-# rewards if repro then 10, if survive then 10, 
+# desires if repro then 10, if survive then 10, 
 
 
 from gridworld import Umwelt
@@ -21,16 +21,14 @@ class Loid():
         self.lambda_energy = lambda_energy
         self.timestep = 0
         self.actions = None
+        self.desires = {'evolve':0, 'reproduce':0, 'eat':0}
+        self.desire_dict = {'food':'eat', 'partner':'reproduce'}
         self.rewards = {'evolve':0, 'reproduce':0, 'eat':0}
-        self.reward_dict = {'food':'eat', 'partner':'reproduce'}
+        self.rewards_coeff = {'evolve':[1,1], 'reproduce':[1,1], 'eat':[1,1]}
         self.umwelt = Umwelt(6,8,'nothing', 'border', 'food', 'partner')
         self.state = state
-        self.last_reward = 0
+        self.last_desire = 0
     
-    def policy(self):
-        #be MDP
-        pass 
-
     def evolve(self):
         if self.state['stage'] == 'larva':
             self.state['stage'] == 'adult'
@@ -49,12 +47,12 @@ class Loid():
             if value == 'food' or value == 'partner':
                 indicator = 1
 
-            dir_prob_numerators[i] = (1 + indicator * self.reward[self.reward_dict[value]])
+            dir_prob_numerators[i] = (1 + indicator * self.desire[self.desire_dict[value]])
         dir_prob_denominator = np.sum(dir_prob_numerators.values)
         dir_prob = {k : v * (1.0/dir_prob_denominator) for k,v in dir_prob_numerators.iteritems()}
 
         if self.state['stage'] == 'larva':
-            dir_prob['evolve'] = np.sigmoid(self.reward["evolve"])
+            dir_prob['evolve'] = np.sigmoid(self.desire["evolve"])
 
         max_value = max(dir_prob.values())
         best_actions = [k for k,v in dir_prob.items() if v == max_value]
@@ -105,26 +103,29 @@ class Loid():
         
         self.umwelt.set_loc(row,col)
         self.timestep += 1
+        return row, col
 
-    def reward(self):
-        reward = self.umwelt.get_reward()
-        if reward == 'nothing':
+    def desire(self):
+        desire = self.umwelt.get_desire()
+        if desire == 'nothing':
             self.state['energy'] -= 0.20
-        if reward == 'border':
+        if desire == 'border':
             self.state['energy'] = 0
-        if reward == 'food':
+        if desire == 'food':
             self.state['energy'] += np.random.normal() * np.exp(-self.lambda_energy*self.timestep)
-            self.umwelt.unset_reward()
-        if reward == 'partner':
+            self.umwelt.unset_desire()
+        if desire == 'partner':
             self.state['energy'] -= 2
-            self.umwelt.unset_reward()
-        self.update_rewards()
+            self.umwelt.unset_desire()
+        self.update_desires()
 
-    def update_rewards(self):
-        self.rewards["reproduce"] *= self.timestep * self.state["energy"]
-        self.rewards["evolve"] = self.timestep * self.state["energy"]
-        self.rewards["eat"] = np.exp(-self.lambda_energy*self.timestep)
-
+    def update_desires(self):
+        self.desires["reproduce"] *= self.timestep * self.state["energy"]
+        self.desires["evolve"] = self.timestep * self.state["energy"]
+        self.desires["eat"] = np.exp(-self.lambda_energy*self.timestep)
+    
+    def reward(self):
+        return -1* np.sum(self.desires)
 
     def isAlive(self):
         return self.state['isAlive']
@@ -132,6 +133,10 @@ class Loid():
     
     def seeWorld(self):
         self.umwelt.print_world()
+
+
+    def get_dims(self):
+        return self.umwelt.get_dims()
 
 
 
