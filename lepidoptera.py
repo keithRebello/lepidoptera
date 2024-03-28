@@ -24,25 +24,25 @@ class Loid():
         self.lambda_energy = lambda_energy
         self.timestep = 0
         self.actions = None
-        self.desires = {'evolve':0, 'reproduce':0, 'eat':0, 'nothing': 0, 'border':0}
+        self.desires = {'metamorphose':0, 'reproduce':0, 'eat':0, 'nothing': 0, 'border':0}
         self.desire_dict = {'food':'eat', 'partner':'reproduce', 'nothing': 'nothing', 'border':'border'}
         self.interactions = {'food_as_larva':0, 'food_as_adult':0, 'partner':0}
-        # self.rewards = {'evolve':0, 'reproduce':0, 'eat':0}
-        # self.rewards_coeff = {'evolve':[1,1], 'reproduce':[1,1], 'eat':[1,1]}
+        # self.rewards = {'metamorphose':0, 'reproduce':0, 'eat':0}
+        # self.rewards_coeff = {'metamorphose':[1,1], 'reproduce':[1,1], 'eat':[1,1]}
         self.umwelt = Umwelt(6,8,'nothing', 'border', 'food', 'partner')
         self.state = {'stage':'larva', 'energy': 1, 'isAlive': isAlive}
         # self.last_desire = 0
     
-    def evolve(self):
-        if self.state['stage'] == 'larva' and self.state['energy'] >= 2:
+    def metamorphose(self):
+        if self.state['stage'] == 'larva' and self.state['energy'] >= 3 :
             self.state['stage'] = 'adult'        
-            self.state['energy'] -= 2
-            self.desires['evolve'] = 0
+            self.state['energy'] *= -0.8
+            self.desires['metamorphose'] = 0
 
         self.timestep += 1
 
     def canEvo(self):
-        if self.state['stage'] == 'larva' and self.state['energy'] >= 2:
+        if self.state['stage'] == 'larva' and self.state['energy'] >= 3:
             return True
         return False
     
@@ -66,8 +66,8 @@ class Loid():
         dir_prob = {k : v * (1.0/dir_prob_denominator) for k,v in dir_prob_numerators.items()}
 
         if self.canEvo():
-            print("Evo desire: ",self.desires["evolve"])
-            dir_prob[9] = self.sigmoid(-100 if self.desires["evolve"] < -100 else self.desires["evolve"])
+            print("Evo desire: ",self.desires["metamorphose"])
+            dir_prob[9] = self.sigmoid(-100 if self.desires["metamorphose"] < -100 else self.desires["metamorphose"])
 
         max_value = max(dir_prob.values())
         best_actions = [k for k,v in dir_prob.items() if v == max_value]
@@ -86,7 +86,7 @@ class Loid():
         row , col = self.map_action_to_rowcol(action)   
 
         if action == 9:
-            self.evolve()
+            self.metamorphose()
         
         self.umwelt.set_loc(row,col)
         self.update_energy()
@@ -154,7 +154,7 @@ class Loid():
 
     def update_desires(self):
         if self.state['stage'] == 'larva':
-            self.desires["evolve"] = self.timestep * self.state["energy"]
+            self.desires["metamorphose"] = self.timestep * self.state["energy"]
             self.desires["eat"] = np.exp(-self.lambda_energy*self.timestep/self.state["energy"])
         else:
             self.desires["reproduce"] = self.timestep * self.state["energy"]
@@ -163,7 +163,7 @@ class Loid():
     
     def reward(self):
         if self.state['stage'] == 'larva':
-            return self.desires['evolve'] + self.desires['eat']
+            return self.desires['metamorphose'] + self.desires['eat']
         else:
             return self.desires['reproduce'] + self.desires['eat']
 
